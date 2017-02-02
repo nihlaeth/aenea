@@ -36,6 +36,36 @@ def set_server_address(address):
     _server_config['host'], _server_config['port'] = address
     _server_config.write()
 
+class _ImpatientSafeTransport(jsonrpclib.jsonrpc.SafeTransport):
+    '''Encrypted transport for jsonrpclib that supports a timeout.'''
+    def __init__(self, context, timeout=None):
+        self._timeout = timeout
+        jsonrpclib.jsonrpc.SafeTransport.__init__(self, context)
+
+    def make_connection(self, host):
+        if self._connection and host == self._connection[0]:
+            return self._connection[1]
+        # create a HTTPS connection object from a host descriptor
+        # host may be a string, or a (host, x509-dict) tuple
+        try:
+            HTTPS = httplib.HTTPSConnection
+        except AttributeError:
+            raise NotImplementedError(
+                "your version of httplib doesn't support HTTPS"
+                )
+        else:
+            chost, self._extra_headers, x509 = self.get_host_info(host)
+            if self._timeout is None:
+                self._connection = host, HTTPS(
+                    chost, None, context=self.context, **(x509 or {}))
+            else:
+                self._connection = host, HTTPS(
+                    chost,
+                    None,
+                    context=self.context,
+                    timeout=self._timeout,
+                    **(x509 or {}))
+            return self._connection[1]
 
 class _ImpatientTransport(jsonrpclib.jsonrpc.Transport):
     '''Transport for jsonrpclib that supports a timeout.'''
