@@ -19,6 +19,7 @@ import httplib
 import jsonrpclib
 import socket
 import time
+import ssl
 
 import aenea.config
 import aenea.configuration
@@ -99,7 +100,19 @@ class Proxy(object):
         self._address = None
         self.last_connect_good = False
         self._last_failed_connect = 0
-        self._transport = _ImpatientTransport(aenea.config.COMMAND_TIMEOUT)
+        if not aenea.config.USE_SSL:
+            self._transport = _ImpatientTransport(
+                aenea.config.COMMAND_TIMEOUT)
+        else:
+            ssl_client = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+            ssl_client.verify_mode = ssl.CERT_REQUIRED
+            ssl_client.load_cert_chain(
+                certfile=aenea.config.SSL_PUBLIC_KEY,
+                keyfile=aenea.config.SSL_PRIVATE_KEY)
+            ssl_client.load_verify_locations(
+                aenea.config.SSL_CERTIFICATE_AUTHORITY_PUBLIC_KEY)
+            self._transport = _ImpatientSafeTransport(
+                ssl_client, aenea.config.COMMAND_TIMEOUT)
 
     def _execute_batch(self, batch, use_multiple_actions=False):
         self._refresh_server()
